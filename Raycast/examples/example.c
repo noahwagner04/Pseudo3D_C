@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include "../include/raycaster.h"
+#include "../include/raycast.h"
 
 int main() {
 	return 0;
