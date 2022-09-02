@@ -36,16 +36,6 @@ that coorelates to a sprite in the raycast scene
 */
 typedef void (*sprite_pixel_t)(raycast_color_t*, double unit_x, double unit_y, double depth);
 
-/*
-used by cast ray functions, holds relavent
-information about the hit location of the ray
-*/
-typedef struct {
-	uint32_t map_x, map_y;
-	double distance;
-	raycast_face_t face;
-} raycast_hit_info_t;
-
 // simple 2d point struct
 typedef struct {
 	double x, y;
@@ -53,6 +43,17 @@ typedef struct {
 
 // vector is the same as point, only used to distinguish the intent of a variable
 typedef raycast_point_t raycast_vector_t;
+
+/*
+used by cast ray functions, holds relavent
+information about the hit location of the ray
+*/
+typedef struct {
+	raycast_point_t hit_point;
+	double distance;
+	raycast_face_t face;
+	uint8_t wall_type;
+} raycast_hit_info_t;
 
 /*
 objects represent basic information about sprites in the scene,
@@ -130,14 +131,12 @@ void raycast_camera_set_rotation(raycast_camera_t*, double angle);
 
 // cast ray functions
 
-// make some sort of DDA function that has the core DDA loop that all the cast ray functions share
-
 /*
-only used internally by the render engine, faster but it requires specific setup
+only used internally by the render engine and other cast ray functions, faster but it requires specific setup
 by the camera, and it doesn't calculate the true euclidean distance traveled by the ray
 uses hit_info in first parameter to return information about where the ray hit
 */
-void raycast_camera_cast_ray(raycast_hit_info_t*, raycast_camera_t*, raycast_scene_t*);
+void raycast_DDA(raycast_hit_info_t*, raycast_scene_t*, double pos_x, double pos_y, double dir_x, double dir_y, double initial_ray_length);
 
 /*
 cast ray function intended for the user to use, slower than the previous
