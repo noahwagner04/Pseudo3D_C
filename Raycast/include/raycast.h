@@ -69,10 +69,10 @@ the renderer is responsible for storing information about the screen,
 certain render settings, and the two pixel functions provided by the user
 */
 typedef struct {
-	uint32_t width, height;
-	double aspect_ratio;
 	uint32_t *pixel_data;
 	double *depth_buffer;
+	uint32_t screen_width, screen_height;
+	double aspect_ratio;
 	char fast_top_bottom, render_top_bottom, render_walls, render_sprites;
 	surface_pixel_t surface_pixel;
 	sprite_pixel_t sprite_pixel;
@@ -83,8 +83,8 @@ the scene is responsible for storing information about
 the geometry of the world, and the objects in the scene
 */
 typedef struct {
-	char *world_map;
-	uint32_t world_width, world_height;
+	uint8_t *world_map;
+	uint32_t world_width, world_height, object_count;
 	raycast_object_t *objects;
 	double wall_height, top_height, bottom_height;
 } raycast_scene_t;
@@ -92,19 +92,26 @@ typedef struct {
 /*
 the camera is responsible for storing information about where
 the world will be rendered, and what fov it will be rendered at
+
+NOTE: we might need another attribute specifying what percentage the ray 
+is through the camera plane (from -1 to 1), essentially cameraX
+alternatively, since the only place that attribute will be useful is inside the render loop,
+maybe make it an extra parameter in the cast ray function
 */
 typedef struct {
 	raycast_point_t position;
 	raycast_vector_t direction;
 	raycast_vector_t plane;
-	double pitch, height, focalLength;
+	double pitch, height, focal_Length, plane_length;
 } raycast_camera_t;
 
 // init functions
 void raycast_object_init(raycast_object_t*, int id, double x, double y);
-void raycast_scene_init(raycast_scene_t*, char *world_map, raycast_object_t *objects);
-void raycast_camera_init(raycast_camera_t*, double x, double y, double aspect_ratio);
-void raycast_renderer_init(raycast_renderer_t*, uint32_t *pixel_data, uint32_t width, uint32_t height, surface_pixel_t surface_pixel, sprite_pixel_t sprite_pixel);
+void raycast_scene_init(raycast_scene_t*, uint8_t *world_map, uint32_t world_width, uint32_t world_height, raycast_object_t *objects, uint32_t object_count);
+void raycast_camera_init(raycast_camera_t*, raycast_renderer_t*, double x, double y);
+
+// returns -1 on failure to initialize or 0 on success
+int raycast_renderer_init(raycast_renderer_t*, uint32_t *pixel_data, uint32_t width, uint32_t height, surface_pixel_t surface_pixel, sprite_pixel_t sprite_pixel);
 
 // de-init functions
 void raycast_renderer_free(raycast_renderer_t*);
@@ -122,6 +129,8 @@ void raycast_camera_rotate(raycast_camera_t*, double angle);
 void raycast_camera_set_rotation(raycast_camera_t*, double angle);
 
 // cast ray functions
+
+// make some sort of DDA function that has the core DDA loop that all the cast ray functions share
 
 /*
 only used internally by the render engine, faster but it requires specific setup
@@ -141,7 +150,7 @@ void raycast_cast_ray(raycast_hit_info_t*, raycast_scene_t*, double pos_x, doubl
 casts a ray from one point to another, returns 1 if there
 is an obstruction, and 0 if there is no obstruction
 */
-int raycast_check_obstruction(double start_x, double start_y, double end_x, double end_y, raycast_scene_t*);
+int raycast_check_obstruction(raycast_scene_t*, double start_x, double start_y, double end_x, double end_y);
 
 // render functions
 void raycast_render_walls(raycast_renderer_t*, raycast_scene_t*, raycast_camera_t*);
