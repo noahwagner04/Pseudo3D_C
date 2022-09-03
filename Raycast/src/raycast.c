@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <math.h>
+#include <stdio.h>
 
 #include "raycast.h"
 
@@ -117,11 +118,11 @@ void raycast_DDA(raycast_hit_info_t* hit_info, raycast_scene_t* scene, double po
 	int step_x;
 	int step_y;
 
-	double delta_dist_x = fabs(initial_ray_length / dir_x);
-	double delta_dist_y = fabs(initial_ray_length / dir_y);
+	double delta_dist_x = dir_x == 0 ? INFINITY : fabs(initial_ray_length / dir_x);
+	double delta_dist_y = dir_y == 0 ? INFINITY : fabs(initial_ray_length / dir_y);
 
 	uint8_t hit = 0;
-	uint8_t side;
+	uint8_t side = 0;
 
 	// DDA setup step directions and initial side distances
 	if (dir_x < 0) {
@@ -151,6 +152,7 @@ void raycast_DDA(raycast_hit_info_t* hit_info, raycast_scene_t* scene, double po
 			side_dist_x += delta_dist_x;
 			side = 0;
 		}
+
 		// check if ray is out of map bounds, manually stop casting if so
 		if (map_x < 0 || map_y < 0 || map_x >= scene->world_width || map_y >= scene->world_height) {
 			break;
@@ -211,7 +213,7 @@ int raycast_check_obstruction(raycast_scene_t* scene, double start_x, double sta
 	raycast_DDA(&hit_info, scene, start_x, start_y, dir_x, dir_y, between_length);
 
 	// check if ray hit end point
-	if(hit_info.distance < between_length) {
+	if (hit_info.distance < between_length) {
 		return 1;
 	} else {
 		return 0;
@@ -221,7 +223,68 @@ int raycast_check_obstruction(raycast_scene_t* scene, double start_x, double sta
 // render functions
 
 void raycast_render_walls(raycast_renderer_t* renderer, raycast_scene_t* scene, raycast_camera_t* camera) {
+	int w = renderer->screen_width;
+	int h = renderer->screen_height;
 
+	for (int x = 0; x < w; x++)
+	{
+		// ranges from -0.5 to 0.5 depending on x
+		double camera_x = (x / (double)w * 2 - 1) * 0.5;
+
+		// ray directions
+		double ray_dir_x = camera->direction.x * camera->focal_Length + camera->plane.x * camera_x;
+		double ray_dir_y = camera->direction.y * camera->focal_Length + camera->plane.y * camera_x;
+
+		/*
+		hit information of ray will be located in this struct, 
+		some names will not match what the variable represents
+		*/
+		raycast_hit_info_t hit_info;
+
+		// cast ray, assume ray length is 1 for faster performance and to calculate perpendicular distance instead of euclidean
+		raycast_DDA(&hit_info, scene, camera->position.x, camera->position.y, ray_dir_x, ray_dir_y, 1);
+
+		int line_height = (int)(h / hit_info.distance);
+		int draw_start = -line_height / 2 + h / 2;
+		int draw_end = line_height / 2 + h / 2;
+
+		//calculate value of wall_x
+		double wall_x; //where exactly the wall was hit
+		if (hit_info.face == raycast_east || hit_info.face == raycast_west) {
+			wall_x = camera->position.x + hit_info.distance * ray_dir_y;
+		} else {
+			wall_x = camera->position.y + hit_info.distance * ray_dir_x;
+		}
+		wall_x -= floor(wall_x);
+
+		if (hit_info.face == raycast_east || hit_info.face == raycast_north) wall_x = 1 - wall_x;
+
+		//How much to increase the texture coordinate per screen pixel
+		double step = 1.0 / (draw_end - draw_start);
+
+		//Starting texture coordinate
+		double wall_y = line_height > h ? abs(draw_start) * step : 0;
+
+		// constrain draw_start and draw_end to be within the range 0 - screen_height
+		if (draw_start < 0) draw_start = 0;
+		if (draw_end >= h) draw_end = h - 1;
+
+		raycast_color_t color;
+
+		for (int y = draw_start; y < draw_end; y++)
+		{
+			int index = x + w * y;
+			color.r = (renderer->pixel_data[index] & 0xFF000000) >> 24;
+			color.g = (renderer->pixel_data[index] & 0x00FF0000) >> 16;
+			color.b = (renderer->pixel_data[index] & 0x0000FF00) >> 8;
+			color.a = (renderer->pixel_data[index] & 0x000000FF);
+
+			renderer->surface_pixel(&color, hit_info.hit_point.x, hit_info.hit_point.y, wall_x, wall_y, hit_info.face, hit_info.distance);
+			wall_y += step;
+
+			renderer->pixel_data[index] = (color.r << 24) + (color.g << 16) + (color.b << 8) + color.a;
+		}
+	}
 }
 
 void raycast_render_top_bottom(raycast_renderer_t* renderer, raycast_scene_t* scene, raycast_camera_t* camera) {
