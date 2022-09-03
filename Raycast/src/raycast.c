@@ -226,8 +226,7 @@ void raycast_render_walls(raycast_renderer_t* renderer, raycast_scene_t* scene, 
 	int w = renderer->screen_width;
 	int h = renderer->screen_height;
 
-	for (int x = 0; x < w; x++)
-	{
+	for (int x = 0; x < w; x++) {
 		// ranges from -0.5 to 0.5 depending on x
 		double camera_x = (x / (double)w * 2 - 1) * 0.5;
 
@@ -271,8 +270,7 @@ void raycast_render_walls(raycast_renderer_t* renderer, raycast_scene_t* scene, 
 
 		raycast_color_t color;
 
-		for (int y = draw_start; y < draw_end; y++)
-		{
+		for (int y = draw_start; y < draw_end; y++) {
 			int index = x + w * y;
 			color.r = (renderer->pixel_data[index] & 0xFF000000) >> 24;
 			color.g = (renderer->pixel_data[index] & 0x00FF0000) >> 16;
