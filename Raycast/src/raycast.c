@@ -250,12 +250,13 @@ void raycast_render_walls(raycast_renderer_t* renderer, raycast_scene_t* scene, 
 		//calculate value of wall_x
 		double wall_x; //where exactly the wall was hit
 		if (hit_info.face == raycast_east || hit_info.face == raycast_west) {
-			wall_x = camera->position.x + hit_info.distance * ray_dir_y;
+			wall_x = camera->position.y + hit_info.distance * ray_dir_y;
 		} else {
-			wall_x = camera->position.y + hit_info.distance * ray_dir_x;
+			wall_x = camera->position.x + hit_info.distance * ray_dir_x;
 		}
 		wall_x -= floor(wall_x);
 
+		// NOTE: maybe come back to this, I don't know if I'm checking the right faces
 		if (hit_info.face == raycast_east || hit_info.face == raycast_north) wall_x = 1 - wall_x;
 
 		//How much to increase the texture coordinate per screen pixel
