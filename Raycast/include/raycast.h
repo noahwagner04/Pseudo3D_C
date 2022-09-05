@@ -103,8 +103,13 @@ typedef struct {
 	raycast_point_t position;
 	raycast_vector_t direction;
 	raycast_vector_t plane;
-	double pitch, height, focal_Length, plane_length;
+	double pitch, height, focal_length, plane_length;
 } raycast_camera_t;
+
+// utility functions
+void raycast_uint32_to_color(uint32_t, raycast_color_t*);
+uint32_t raycast_color_to_uint32(raycast_color_t*);
+
 
 // init functions
 void raycast_object_init(raycast_object_t*, int id, double x, double y);
