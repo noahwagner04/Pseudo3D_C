@@ -4,6 +4,18 @@
 
 #include "raycast.h"
 
+// utility functions
+void raycast_uint32_to_color(uint32_t num, raycast_color_t* color) {
+	color->r = (num & 0xFF000000) >> 24;
+	color->g = (num & 0x00FF0000) >> 16;
+	color->b = (num & 0x0000FF00) >> 8;
+	color->a = (num & 0x000000FF);
+}
+
+uint32_t raycast_color_to_uint32(raycast_color_t* color) {
+	return (uint32_t)((color->r << 24) + (color->g << 16) + (color->b << 8) + color->a);
+}
+
 // init functions
 
 void raycast_object_init(raycast_object_t* object, int id, double x, double y) {
@@ -39,7 +51,7 @@ void raycast_camera_init(raycast_camera_t* camera, raycast_renderer_t *renderer,
 
 	camera->pitch = 0;
 	camera->height = 0.5;
-	camera->focal_Length = 1;
+	camera->focal_length = 1;
 }
 
 int raycast_renderer_init(raycast_renderer_t* renderer, uint32_t *pixel_data, uint32_t screen_width, uint32_t screen_height, surface_pixel_t surface_pixel, sprite_pixel_t sprite_pixel) {
@@ -222,6 +234,7 @@ int raycast_check_obstruction(raycast_scene_t* scene, double start_x, double sta
 
 // render functions
 
+// LATER: add camera height and pitch functionality and depth buffer capabilities
 void raycast_render_walls(raycast_renderer_t* renderer, raycast_scene_t* scene, raycast_camera_t* camera) {
 	int w = renderer->screen_width;
 	int h = renderer->screen_height;
@@ -231,11 +244,11 @@ void raycast_render_walls(raycast_renderer_t* renderer, raycast_scene_t* scene, 
 		double camera_x = (x / (double)w * 2 - 1) * 0.5;
 
 		// ray directions
-		double ray_dir_x = camera->direction.x * camera->focal_Length + camera->plane.x * camera_x;
-		double ray_dir_y = camera->direction.y * camera->focal_Length + camera->plane.y * camera_x;
+		double ray_dir_x = camera->direction.x * camera->focal_length + camera->plane.x * camera_x;
+		double ray_dir_y = camera->direction.y * camera->focal_length + camera->plane.y * camera_x;
 
 		/*
-		hit information of ray will be located in this struct, 
+		hit information of ray will be located in this struct,
 		some names will not match what the variable represents
 		*/
 		raycast_hit_info_t hit_info;
@@ -256,11 +269,12 @@ void raycast_render_walls(raycast_renderer_t* renderer, raycast_scene_t* scene, 
 		}
 		wall_x -= floor(wall_x);
 
-		// NOTE: maybe come back to this, I don't know if I'm checking the right faces
+		// LATER: maybe come back to this, I don't know if I'm checking the right faces
 		if (hit_info.face == raycast_east || hit_info.face == raycast_north) wall_x = 1 - wall_x;
 
-		//How much to increase the texture coordinate per screen pixel
-		double step = 1.0 / (draw_end - draw_start);
+		// How much to increase the texture coordinate per screen pixel 
+		// force line_height to be even, for some reason it gives better results
+		double step = 1.0 / (line_height & 0xFFFFFFFE);
 
 		//Starting texture coordinate
 		double wall_y = line_height > h ? abs(draw_start) * step : 0;
@@ -273,21 +287,81 @@ void raycast_render_walls(raycast_renderer_t* renderer, raycast_scene_t* scene, 
 
 		for (int y = draw_start; y < draw_end; y++) {
 			int index = x + w * y;
-			color.r = (renderer->pixel_data[index] & 0xFF000000) >> 24;
-			color.g = (renderer->pixel_data[index] & 0x00FF0000) >> 16;
-			color.b = (renderer->pixel_data[index] & 0x0000FF00) >> 8;
-			color.a = (renderer->pixel_data[index] & 0x000000FF);
+
+			raycast_uint32_to_color(renderer->pixel_data[index], &color);
 
 			renderer->surface_pixel(&color, hit_info.hit_point.x, hit_info.hit_point.y, wall_x, wall_y, hit_info.face, hit_info.distance);
 			wall_y += step;
 
-			renderer->pixel_data[index] = (color.r << 24) + (color.g << 16) + (color.b << 8) + color.a;
+			renderer->pixel_data[index] = raycast_color_to_uint32(&color);
 		}
 	}
 }
 
+/*
+LATER: implement mode switch from regular to faster (but more limited) ceilings 
+also add pitch and height calculations and depth buffer capabilities
+*/
 void raycast_render_top_bottom(raycast_renderer_t* renderer, raycast_scene_t* scene, raycast_camera_t* camera) {
+	int w = renderer->screen_width;
+	int h = renderer->screen_height;
 
+	for (int y = 0; y < h / 2; y++) {
+		// rayDir for leftmost ray (x = 0) and rightmost ray (x = w)
+		double ray_dir_x0 = camera->direction.x * camera->focal_length - camera->plane.x * 0.5;
+		double ray_dir_y0 = camera->direction.y * camera->focal_length - camera->plane.y * 0.5;
+		double ray_dir_x1 = camera->direction.x * camera->focal_length + camera->plane.x * 0.5;
+		double ray_dir_y1 = camera->direction.y * camera->focal_length + camera->plane.y * 0.5;
+
+		// Current y position compared to the center of the screen (the horizon)
+		int p = y - h / 2;
+
+		// Vertical position of the camera.
+		double pos_z = 0.5 * h;
+
+		// Horizontal distance from the camera to the floor for the current row.
+		// 0.5 is the z position exactly in the middle between floor and ceiling.
+		double row_distance = fabs(pos_z / p);
+
+		// calculate the real world step vector we have to add for each x (parallel to camera plane)
+		// adding step by step avoids multiplications with a weight in the inner loop
+		double floor_step_x = row_distance * (ray_dir_x1 - ray_dir_x0) / w;
+		double floor_step_y = row_distance * (ray_dir_y1 - ray_dir_y0) / w;
+
+		// real world coordinates of the leftmost column. This will be updated as we step to the right.
+		double floor_x = camera->position.x + row_distance * ray_dir_x0;
+		double floor_y = camera->position.y + row_distance * ray_dir_y0;
+
+		for (int x = 0; x < w; ++x) {
+			// the cell coord is simply got from the integer parts of floorX and floorY
+			int cell_x = (int)floor_x;
+			int cell_y = (int)floor_y;
+
+			double unit_x = floor_x - cell_x;
+			double unit_y = floor_y - cell_y;
+
+			int index1 = y * w + x;
+			int index2 = ((h - 1) - y) * w + x;
+
+			raycast_color_t color;
+
+			raycast_uint32_to_color(renderer->pixel_data[index1], &color);
+
+			renderer->surface_pixel(&color, cell_x, cell_y, unit_x, unit_y, raycast_top, row_distance);
+
+			renderer->pixel_data[index1] = raycast_color_to_uint32(&color);
+
+			//floor (symmetrical, at screenHeight - y - 1 instead of y)
+			raycast_uint32_to_color(renderer->pixel_data[index2], &color);
+
+			renderer->surface_pixel(&color, cell_x, cell_y, unit_x, unit_y, raycast_bottom, row_distance);
+
+			renderer->pixel_data[index2] = raycast_color_to_uint32(&color);
+
+			floor_x += floor_step_x;
+			floor_y += floor_step_y;
+		}
+	}
 }
 
 void raycast_render_sprites(raycast_renderer_t* renderer, raycast_scene_t* scene, raycast_camera_t* camera) {
