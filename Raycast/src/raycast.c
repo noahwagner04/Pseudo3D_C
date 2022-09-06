@@ -281,7 +281,7 @@ void raycast_render_walls(raycast_renderer_t* renderer, raycast_scene_t* scene, 
 
 		// constrain draw_start and draw_end to be within the range 0 - screen_height
 		if (draw_start < 0) draw_start = 0;
-		if (draw_end >= h) draw_end = h - 1;
+		if (draw_end >= h) draw_end = h;
 
 		raycast_color_t color;
 
