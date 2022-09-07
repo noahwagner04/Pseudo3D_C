@@ -114,8 +114,8 @@ void raycast_camera_set_rotation(raycast_camera_t* camera, double angle) {
 	camera->direction.x = cos(angle);
 	camera->direction.y = sin(angle);
 
-	camera->plane.x = -sin(angle) * camera->plane_length;
-	camera->plane.y = cos(angle) * camera->plane_length;
+	camera->plane.x = -(camera->direction.y) * camera->plane_length;
+	camera->plane.y = camera->direction.x * camera->plane_length;
 }
 
 // cast ray functions
@@ -270,7 +270,7 @@ void raycast_render_walls(raycast_renderer_t* renderer, raycast_scene_t* scene, 
 		wall_x -= floor(wall_x);
 
 		// LATER: maybe come back to this, I don't know if I'm checking the right faces
-		if (hit_info.face == raycast_east || hit_info.face == raycast_north) wall_x = 1 - wall_x;
+		// if (hit_info.face == raycast_east || hit_info.face == raycast_north) wall_x = 1 - wall_x;
 
 		// How much to increase the texture coordinate per screen pixel 
 		// force line_height to be even, for some reason it gives better results
@@ -291,9 +291,10 @@ void raycast_render_walls(raycast_renderer_t* renderer, raycast_scene_t* scene, 
 			raycast_uint32_to_color(renderer->pixel_data[index], &color);
 
 			renderer->surface_pixel(&color, hit_info.hit_point.x, hit_info.hit_point.y, wall_x, wall_y, hit_info.face, hit_info.distance);
-			wall_y += step;
 
 			renderer->pixel_data[index] = raycast_color_to_uint32(&color);
+
+			wall_y += step;
 		}
 	}
 }
@@ -333,25 +334,28 @@ void raycast_render_top_bottom(raycast_renderer_t* renderer, raycast_scene_t* sc
 		double floor_y = camera->position.y + row_distance * ray_dir_y0;
 
 		for (int x = 0; x < w; ++x) {
-			// the cell coord is simply got from the integer parts of floorX and floorY
+			// the cell coord is simply got from the integer parts of floor_x and floor_y
 			int cell_x = (int)floor_x;
 			int cell_y = (int)floor_y;
 
+			// the floating point coordinates within the cell, ranges between 0 - 1
 			double unit_x = floor_x - cell_x;
 			double unit_y = floor_y - cell_y;
 
+			// index1 draws ceiling (top half of screen), index2 draws floor (bottom half of screen)
 			int index1 = y * w + x;
 			int index2 = ((h - 1) - y) * w + x;
 
 			raycast_color_t color;
 
+			//draw ceiling
 			raycast_uint32_to_color(renderer->pixel_data[index1], &color);
 
 			renderer->surface_pixel(&color, cell_x, cell_y, unit_x, unit_y, raycast_top, row_distance);
 
 			renderer->pixel_data[index1] = raycast_color_to_uint32(&color);
 
-			//floor (symmetrical, at screenHeight - y - 1 instead of y)
+			// draw floor
 			raycast_uint32_to_color(renderer->pixel_data[index2], &color);
 
 			renderer->surface_pixel(&color, cell_x, cell_y, unit_x, unit_y, raycast_bottom, row_distance);
