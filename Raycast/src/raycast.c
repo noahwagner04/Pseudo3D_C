@@ -272,7 +272,7 @@ void raycast_render_walls(raycast_renderer_t* renderer, raycast_scene_t* scene, 
 		// LATER: maybe come back to this, I don't know if I'm checking the right faces
 		// if (hit_info.face == raycast_east || hit_info.face == raycast_north) wall_x = 1 - wall_x;
 
-		// How much to increase the texture coordinate per screen pixel 
+		// How much to increase the texture coordinate per screen pixel
 		// force line_height to be even, for some reason it gives better results
 		double step = 1.0 / (line_height & 0xFFFFFFFE);
 
@@ -288,13 +288,16 @@ void raycast_render_walls(raycast_renderer_t* renderer, raycast_scene_t* scene, 
 		for (int y = draw_start; y < draw_end; y++) {
 			int index = x + w * y;
 
-			raycast_uint32_to_color(renderer->pixel_data[index], &(pixel.color));
+			if (renderer->depth_buffer[index] > hit_info.distance) {
+				raycast_uint32_to_color(renderer->pixel_data[index], &(pixel.color));
 
-			pixel.location = index;
+				pixel.location = index;
 
-			renderer->surface_pixel(&pixel, hit_info.hit_point.x, hit_info.hit_point.y, wall_x, wall_y, hit_info.face, hit_info.distance);
+				renderer->surface_pixel(&pixel, hit_info.hit_point.x, hit_info.hit_point.y, wall_x, wall_y, hit_info.face, hit_info.distance);
 
-			renderer->pixel_data[index] = raycast_color_to_uint32(&(pixel.color));
+				renderer->pixel_data[index] = raycast_color_to_uint32(&(pixel.color));
+				renderer->depth_buffer[index] = hit_info.distance;
+			}
 
 			wall_y += step;
 		}
@@ -302,7 +305,7 @@ void raycast_render_walls(raycast_renderer_t* renderer, raycast_scene_t* scene, 
 }
 
 /*
-LATER: implement mode switch from regular to faster (but more limited) ceilings 
+LATER: implement mode switch from regular to faster (but more limited) ceilings
 also add pitch and height calculations and depth buffer capabilities
 */
 void raycast_render_top_bottom(raycast_renderer_t* renderer, raycast_scene_t* scene, raycast_camera_t* camera) {
@@ -351,22 +354,30 @@ void raycast_render_top_bottom(raycast_renderer_t* renderer, raycast_scene_t* sc
 			raycast_screen_pixel_t pixel;
 
 			//draw ceiling
-			raycast_uint32_to_color(renderer->pixel_data[index1], &(pixel.color));
+			if (renderer->depth_buffer[index1] > row_distance) {
 
-			pixel.location = index1;
+				raycast_uint32_to_color(renderer->pixel_data[index1], &(pixel.color));
 
-			renderer->surface_pixel(&pixel, cell_x, cell_y, unit_x, unit_y, raycast_top, row_distance);
+				pixel.location = index1;
 
-			renderer->pixel_data[index1] = raycast_color_to_uint32(&(pixel.color));
+				renderer->surface_pixel(&pixel, cell_x, cell_y, unit_x, unit_y, raycast_top, row_distance);
+
+				renderer->pixel_data[index1] = raycast_color_to_uint32(&(pixel.color));
+				renderer->depth_buffer[index1] = row_distance;
+			}
 
 			// draw floor
-			raycast_uint32_to_color(renderer->pixel_data[index2], &(pixel.color));
+			if (renderer->depth_buffer[index2] > row_distance) {
 
-			pixel.location = index2;
+				raycast_uint32_to_color(renderer->pixel_data[index2], &(pixel.color));
 
-			renderer->surface_pixel(&pixel, cell_x, cell_y, unit_x, unit_y, raycast_bottom, row_distance);
+				pixel.location = index2;
 
-			renderer->pixel_data[index2] = raycast_color_to_uint32(&(pixel.color));
+				renderer->surface_pixel(&pixel, cell_x, cell_y, unit_x, unit_y, raycast_bottom, row_distance);
+
+				renderer->pixel_data[index2] = raycast_color_to_uint32(&(pixel.color));
+				renderer->depth_buffer[index2] = row_distance;
+			}
 
 			floor_x += floor_step_x;
 			floor_y += floor_step_y;
