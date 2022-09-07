@@ -283,16 +283,18 @@ void raycast_render_walls(raycast_renderer_t* renderer, raycast_scene_t* scene, 
 		if (draw_start < 0) draw_start = 0;
 		if (draw_end >= h) draw_end = h;
 
-		raycast_color_t color;
+		raycast_screen_pixel_t pixel;
 
 		for (int y = draw_start; y < draw_end; y++) {
 			int index = x + w * y;
 
-			raycast_uint32_to_color(renderer->pixel_data[index], &color);
+			raycast_uint32_to_color(renderer->pixel_data[index], &(pixel.color));
 
-			renderer->surface_pixel(&color, hit_info.hit_point.x, hit_info.hit_point.y, wall_x, wall_y, hit_info.face, hit_info.distance);
+			pixel.location = index;
 
-			renderer->pixel_data[index] = raycast_color_to_uint32(&color);
+			renderer->surface_pixel(&pixel, hit_info.hit_point.x, hit_info.hit_point.y, wall_x, wall_y, hit_info.face, hit_info.distance);
+
+			renderer->pixel_data[index] = raycast_color_to_uint32(&(pixel.color));
 
 			wall_y += step;
 		}
@@ -346,21 +348,25 @@ void raycast_render_top_bottom(raycast_renderer_t* renderer, raycast_scene_t* sc
 			int index1 = y * w + x;
 			int index2 = ((h - 1) - y) * w + x;
 
-			raycast_color_t color;
+			raycast_screen_pixel_t pixel;
 
 			//draw ceiling
-			raycast_uint32_to_color(renderer->pixel_data[index1], &color);
+			raycast_uint32_to_color(renderer->pixel_data[index1], &(pixel.color));
 
-			renderer->surface_pixel(&color, cell_x, cell_y, unit_x, unit_y, raycast_top, row_distance);
+			pixel.location = index1;
 
-			renderer->pixel_data[index1] = raycast_color_to_uint32(&color);
+			renderer->surface_pixel(&pixel, cell_x, cell_y, unit_x, unit_y, raycast_top, row_distance);
+
+			renderer->pixel_data[index1] = raycast_color_to_uint32(&(pixel.color));
 
 			// draw floor
-			raycast_uint32_to_color(renderer->pixel_data[index2], &color);
+			raycast_uint32_to_color(renderer->pixel_data[index2], &(pixel.color));
 
-			renderer->surface_pixel(&color, cell_x, cell_y, unit_x, unit_y, raycast_bottom, row_distance);
+			pixel.location = index2;
 
-			renderer->pixel_data[index2] = raycast_color_to_uint32(&color);
+			renderer->surface_pixel(&pixel, cell_x, cell_y, unit_x, unit_y, raycast_bottom, row_distance);
+
+			renderer->pixel_data[index2] = raycast_color_to_uint32(&(pixel.color));
 
 			floor_x += floor_step_x;
 			floor_y += floor_step_y;

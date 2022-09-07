@@ -21,6 +21,11 @@ typedef struct {
 	uint8_t r, g, b, a;
 } raycast_color_t;
 
+typedef struct {
+	raycast_color_t color;
+	uint32_t location;
+} raycast_screen_pixel_t;
+
 /*
 this function runs for every pixel on the screen that coorelates to a surface, whether it be wall, floor, or ceiling
 it provides information about that pixels location in the world through its arguments
@@ -28,13 +33,13 @@ the user can use this information to map textures to surfaces, implement depth l
 source lighting, glossy floors, sunlight shadows, and more
 the first parameter is the pixel that the user is supposed to change
 */
-typedef void (*surface_pixel_t)(raycast_color_t*, int map_x, int map_y, double unit_x, double unit_y, raycast_face_t face, double depth);
+typedef void (*surface_pixel_t)(raycast_screen_pixel_t*, int map_x, int map_y, double unit_x, double unit_y, raycast_face_t face, double depth);
 
 /*
 similar to the function above, but it instead runs for every pixel on the screen
 that coorelates to a sprite in the raycast scene
 */
-typedef void (*sprite_pixel_t)(raycast_color_t*, double unit_x, double unit_y, double depth);
+typedef void (*sprite_pixel_t)(raycast_screen_pixel_t*, double unit_x, double unit_y, double depth);
 
 // simple 2d point struct
 typedef struct {
