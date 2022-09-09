@@ -39,7 +39,7 @@ typedef void (*surface_pixel_t)(raycast_screen_pixel_t*, int map_x, int map_y, d
 similar to the function above, but it instead runs for every pixel on the screen
 that coorelates to a sprite in the raycast scene
 */
-typedef void (*sprite_pixel_t)(raycast_screen_pixel_t*, double unit_x, double unit_y, double depth);
+typedef void (*sprite_pixel_t)(raycast_screen_pixel_t*, int id, double unit_x, double unit_y, double depth);
 
 // simple 2d point struct
 typedef struct {
@@ -67,7 +67,7 @@ its up to the user to provide the texture of the object
 typedef struct {
 	int id;
 	raycast_point_t position;
-	double size;
+	double height, size;
 } raycast_object_t;
 
 /*

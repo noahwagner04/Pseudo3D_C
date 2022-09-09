@@ -23,6 +23,7 @@ void raycast_object_init(raycast_object_t* object, int id, double x, double y) {
 	object->position.x = x;
 	object->position.y = y;
 	object->size = 1;
+	object->height = 0;
 }
 
 void raycast_scene_init(raycast_scene_t* scene, uint8_t *world_map, uint32_t world_width, uint32_t world_height, raycast_object_t *objects, uint32_t object_count) {
@@ -241,7 +242,7 @@ void raycast_render_walls(raycast_renderer_t* renderer, raycast_scene_t* scene, 
 
 	for (int x = 0; x < w; x++) {
 		// ranges from -0.5 to 0.5 depending on x
-		double camera_x = (x / (double)w * 2 - 1) * 0.5;
+		double camera_x = (x / (double)w * 2 - 1) / 2;
 
 		// ray directions
 		double ray_dir_x = camera->direction.x * camera->focal_length + camera->plane.x * camera_x;
@@ -255,6 +256,9 @@ void raycast_render_walls(raycast_renderer_t* renderer, raycast_scene_t* scene, 
 
 		// cast ray, assume ray length is 1 for faster performance and to calculate perpendicular distance instead of euclidean
 		raycast_DDA(&hit_info, scene, camera->position.x, camera->position.y, ray_dir_x, ray_dir_y, 1);
+
+		// if we hit out of the map, don't do anything
+		if(hit_info.wall_type == 0) continue;
 
 		int line_height = (int)(h / hit_info.distance);
 		int draw_start = -line_height / 2 + h / 2;
@@ -314,10 +318,10 @@ void raycast_render_top_bottom(raycast_renderer_t* renderer, raycast_scene_t* sc
 
 	for (int y = 0; y < h / 2; y++) {
 		// rayDir for leftmost ray (x = 0) and rightmost ray (x = w)
-		double ray_dir_x0 = camera->direction.x * camera->focal_length - camera->plane.x * 0.5;
-		double ray_dir_y0 = camera->direction.y * camera->focal_length - camera->plane.y * 0.5;
-		double ray_dir_x1 = camera->direction.x * camera->focal_length + camera->plane.x * 0.5;
-		double ray_dir_y1 = camera->direction.y * camera->focal_length + camera->plane.y * 0.5;
+		double ray_dir_x0 = camera->direction.x * camera->focal_length - camera->plane.x / 2;
+		double ray_dir_y0 = camera->direction.y * camera->focal_length - camera->plane.y / 2;
+		double ray_dir_x1 = camera->direction.x * camera->focal_length + camera->plane.x / 2;
+		double ray_dir_y1 = camera->direction.y * camera->focal_length + camera->plane.y / 2;
 
 		// Current y position compared to the center of the screen (the horizon)
 		int p = y - h / 2;
@@ -360,7 +364,7 @@ void raycast_render_top_bottom(raycast_renderer_t* renderer, raycast_scene_t* sc
 
 				pixel.location = index1;
 
-				renderer->surface_pixel(&pixel, cell_x, cell_y, unit_x, unit_y, raycast_top, row_distance);
+				renderer->surface_pixel(&pixel, cell_x, cell_y, fabs(unit_x), fabs(unit_y), raycast_top, row_distance);
 
 				renderer->pixel_data[index1] = raycast_color_to_uint32(&(pixel.color));
 				renderer->depth_buffer[index1] = row_distance;
@@ -373,7 +377,7 @@ void raycast_render_top_bottom(raycast_renderer_t* renderer, raycast_scene_t* sc
 
 				pixel.location = index2;
 
-				renderer->surface_pixel(&pixel, cell_x, cell_y, unit_x, unit_y, raycast_bottom, row_distance);
+				renderer->surface_pixel(&pixel, cell_x, cell_y, fabs(unit_x), fabs(unit_y), raycast_bottom, row_distance);
 
 				renderer->pixel_data[index2] = raycast_color_to_uint32(&(pixel.color));
 				renderer->depth_buffer[index2] = row_distance;
@@ -386,7 +390,83 @@ void raycast_render_top_bottom(raycast_renderer_t* renderer, raycast_scene_t* sc
 }
 
 void raycast_render_sprites(raycast_renderer_t* renderer, raycast_scene_t* scene, raycast_camera_t* camera) {
+	int w = renderer->screen_width;
+	int h = renderer->screen_height;
 
+	double camera_i_x = camera->plane.x / 2;
+	double camera_i_y = camera->plane.y / 2;
+
+	double camera_j_x = camera->direction.x * camera->focal_length;
+	double camera_j_y = camera->direction.y * camera->focal_length;
+
+	for (int i = 0; i < scene->object_count; i++) {
+		raycast_object_t *sprite = scene->objects + i;
+
+		//translate sprite position to relative to camera
+		double sprite_x = sprite->position.x - camera->position.x;
+		double sprite_y = sprite->position.y - camera->position.y;
+
+		//transform sprite with the inverse camera matrix
+		double inv_det = 1.0 / (camera_i_x * camera_j_y - camera_j_x * camera_i_y);
+
+		// sprites coordinates relative to the camera, y coordinate used as depth (z-axis)
+		double transform_x = inv_det * (camera_j_y * sprite_x - camera_j_x * sprite_y);
+		double transform_y = inv_det * (-camera_i_y * sprite_x + camera_i_x * sprite_y);
+
+		// if the sprite is behind us, don't draw it
+		if (transform_y < 0) continue;
+
+		int sprite_screen_x = (int)((1 + transform_x / transform_y) / 2 * w);
+
+		//calculate height of the sprite on screen
+		int sprite_height = abs((int)(h * (sprite->size / transform_y)));
+		//calculate lowest and highest pixel to fill in current stripe
+		int draw_start_y = -sprite_height / 2 + h / 2;
+		int draw_end_y = sprite_height / 2 + h / 2;
+
+		//calculate width of the sprite
+		int sprite_width = sprite_height; // same as height of sprite, given that it's square
+		int draw_start_x = -sprite_width / 2 + sprite_screen_x;
+		int draw_end_x = sprite_width / 2 + sprite_screen_x;
+
+		double step = 1.0 / sprite_height;
+
+		double sprite_percent_x = draw_start_x < 0 ? (double)abs(draw_start_x) / sprite_height : 0;
+		double sprite_percent_x_initial = sprite_percent_x;
+		double sprite_percent_y = draw_start_y < 0 ? (double)abs(draw_start_y) / sprite_height : 0;
+
+		// clamp draw start / end values to fit into the screen
+		if (draw_start_y < 0) draw_start_y = 0;
+		if (draw_end_y >= h) draw_end_y = h;
+
+		if (draw_start_x < 0) draw_start_x = 0;
+		if (draw_end_x > w) draw_end_x = w;
+
+		raycast_screen_pixel_t pixel;
+
+		for (int y = draw_start_y; y < draw_end_y; y++) {
+			for (int x = draw_start_x; x < draw_end_x; x++) {
+				int index = x + y * w;
+
+				if (renderer->depth_buffer[index] > transform_y) {
+					raycast_uint32_to_color(renderer->pixel_data[index], &(pixel.color));
+
+					pixel.location = index;
+
+					renderer->sprite_pixel(&pixel, sprite->id, sprite_percent_x, sprite_percent_y, transform_y);
+
+					renderer->pixel_data[index] = raycast_color_to_uint32(&(pixel.color));
+					// only account for the sprites depth if the pixel being drawn is fully opaque
+					if (pixel.color.a == 255) {
+						renderer->depth_buffer[index] = transform_y;
+					}
+				}
+				sprite_percent_x += step;
+			}
+			sprite_percent_x = sprite_percent_x_initial;
+			sprite_percent_y += step;
+		}
+	}
 }
 
 // NOTE: check if scene.world_map or scene.objects is NULL, if so dont run the render function for those, if pixel data is NULL, dont run the function at all
