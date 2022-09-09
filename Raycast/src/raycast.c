@@ -236,7 +236,7 @@ int raycast_check_obstruction(raycast_scene_t* scene, double start_x, double sta
 
 // render functions
 
-// LATER: add camera height and pitch functionality and depth buffer capabilities
+// LATER: add camera height and pitch functionality and different wall heights
 void raycast_render_walls(raycast_renderer_t* renderer, raycast_scene_t* scene, raycast_camera_t* camera) {
 	int w = renderer->screen_width;
 	int h = renderer->screen_height;
@@ -311,7 +311,7 @@ void raycast_render_walls(raycast_renderer_t* renderer, raycast_scene_t* scene, 
 
 /*
 LATER: implement mode switch from regular to faster (but more limited) ceilings
-also add pitch and height calculations and depth buffer capabilities
+also add pitch and height calculations, add different height floor / ceiling functionality
 */
 void raycast_render_top_bottom(raycast_renderer_t* renderer, raycast_scene_t* scene, raycast_camera_t* camera) {
 	int w = renderer->screen_width;
@@ -390,6 +390,10 @@ void raycast_render_top_bottom(raycast_renderer_t* renderer, raycast_scene_t* sc
 	}
 }
 
+/*
+LATER: i need to implement sprites that correct for camera pitch, and sprites 
+at different heights, and sprites that respond to camera at different height
+*/
 void raycast_render_sprites(raycast_renderer_t* renderer, raycast_scene_t* scene, raycast_camera_t* camera) {
 	int w = renderer->screen_width;
 	int h = renderer->screen_height;
