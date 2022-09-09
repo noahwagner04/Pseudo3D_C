@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "raycast.h"
 
@@ -258,7 +259,7 @@ void raycast_render_walls(raycast_renderer_t* renderer, raycast_scene_t* scene, 
 		raycast_DDA(&hit_info, scene, camera->position.x, camera->position.y, ray_dir_x, ray_dir_y, 1);
 
 		// if we hit out of the map, don't do anything
-		if(hit_info.wall_type == 0) continue;
+		if (hit_info.wall_type == 0) continue;
 
 		int line_height = (int)(h / hit_info.distance);
 		int draw_start = -line_height / 2 + h / 2;
@@ -469,7 +470,29 @@ void raycast_render_sprites(raycast_renderer_t* renderer, raycast_scene_t* scene
 	}
 }
 
-// NOTE: check if scene.world_map or scene.objects is NULL, if so dont run the render function for those, if pixel data is NULL, dont run the function at all
 void raycast_render(raycast_renderer_t* renderer, raycast_scene_t* scene, raycast_camera_t* camera) {
+	if (renderer->pixel_data == NULL) return;
 
+	// clear the screen before next frame
+	memset(renderer->pixel_data, 0, renderer->screen_width * renderer->screen_height * 4);
+
+	// reset the depth buffer
+	for (int x = 0; x < renderer->screen_width; ++x) {
+		for (int y = 0; y < renderer->screen_height; ++y) {
+			renderer->depth_buffer[x * renderer->screen_height + y] = INFINITY;
+		}
+	}
+
+	// render surfaces
+	if (renderer->surface_pixel != NULL) {
+
+		if(scene->world_map != NULL && renderer->render_walls) raycast_render_walls(renderer, scene, camera);
+
+		if(renderer->render_top_bottom) raycast_render_top_bottom(renderer, scene, camera);
+	}
+
+	// render objects
+	if (scene->objects != NULL && renderer->sprite_pixel != NULL && renderer->render_sprites) {
+		raycast_render_sprites(renderer, scene, camera);
+	}
 }
