@@ -262,7 +262,7 @@ void raycast_render_walls(raycast_renderer_t* renderer, raycast_scene_t* scene, 
 		if (hit_info.wall_type == 0) continue;
 
 		int line_height = (int)(h / hit_info.distance);
-		int draw_start = h / 2 -line_height / 2;
+		int draw_start = h / 2 - line_height / 2;
 		int draw_end = h / 2 + line_height / 2;
 
 		//calculate value of wall_x
