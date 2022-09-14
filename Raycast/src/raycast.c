@@ -262,7 +262,7 @@ void raycast_render_walls(raycast_renderer_t* renderer, raycast_scene_t* scene, 
 		if (hit_info.wall_type == 0) continue;
 
 		int line_height = (int)(h / hit_info.distance);
-		int draw_start = h / 2 - line_height / 2;
+		int draw_start = h / 2 - (int)(line_height * scene->wall_height - (double)line_height / 2);
 		int draw_end = h / 2 + line_height / 2;
 
 		//calculate value of wall_x
@@ -278,8 +278,7 @@ void raycast_render_walls(raycast_renderer_t* renderer, raycast_scene_t* scene, 
 		// if (hit_info.face == raycast_east || hit_info.face == raycast_north) wall_x = 1 - wall_x;
 
 		// How much to increase the texture coordinate per screen pixel
-		// force line_height to be even, for some reason it gives better results
-		double step = 1.0 / (line_height & 0xFFFFFFFE);
+		double step = 1.0 / (draw_end - draw_start);
 
 		//Starting texture coordinate
 		double wall_y = draw_start < 0 ? abs(draw_start) * step : 0;
@@ -405,11 +404,11 @@ void raycast_render_sprites(raycast_renderer_t* renderer, raycast_scene_t* scene
 	double camera_j_y = camera->direction.y * camera->focal_length;
 
 	for (int i = 0; i < scene->object_count; i++) {
-		raycast_object_t *sprite = scene->objects + i;
+		raycast_object_t *object = scene->objects + i;
 
 		//translate sprite position to relative to camera
-		double sprite_x = sprite->position.x - camera->position.x;
-		double sprite_y = sprite->position.y - camera->position.y;
+		double sprite_x = object->position.x - camera->position.x;
+		double sprite_y = object->position.y - camera->position.y;
 
 		//transform sprite with the inverse camera matrix
 		double inv_det = 1.0 / (camera_i_x * camera_j_y - camera_j_x * camera_i_y);
@@ -422,20 +421,23 @@ void raycast_render_sprites(raycast_renderer_t* renderer, raycast_scene_t* scene
 		if (transform_y < 0) continue;
 
 		int sprite_screen_x = (int)((1 + transform_x / transform_y) / 2 * w);
+		int sprite_screen_y = (int)((1 - object->height / transform_y) / 2 * h);
 
 		//calculate height of the sprite on screen
-		int sprite_height = abs((int)(h * (sprite->size / transform_y)));
+		int sprite_height = abs((int)(h * (object->size / transform_y)));
 		//calculate lowest and highest pixel to fill in current stripe
-		int draw_start_y = -sprite_height / 2 + h / 2;
-		int draw_end_y = sprite_height / 2 + h / 2;
+		int draw_start_y = sprite_screen_y - sprite_height / 2;
+		int draw_end_y = sprite_screen_y + sprite_height / 2;
 
 		//calculate width of the sprite
 		int sprite_width = sprite_height; // same as height of sprite, given that it's square
-		int draw_start_x = -sprite_width / 2 + sprite_screen_x;
-		int draw_end_x = sprite_width / 2 + sprite_screen_x;
+		int draw_start_x = sprite_screen_x - sprite_width / 2;
+		int draw_end_x = sprite_screen_x + sprite_width / 2;
 
+		// how much to increase percent variables per pixel
 		double step = 1.0 / sprite_height;
 
+		// sprite percentage coordinates (ranges from 0 - 1) the current pixel is on
 		double sprite_percent_x = draw_start_x < 0 ? (double)abs(draw_start_x) / sprite_height : 0;
 		double sprite_percent_x_initial = sprite_percent_x;
 		double sprite_percent_y = draw_start_y < 0 ? (double)abs(draw_start_y) / sprite_height : 0;
@@ -458,7 +460,7 @@ void raycast_render_sprites(raycast_renderer_t* renderer, raycast_scene_t* scene
 
 					pixel.location = index;
 
-					renderer->sprite_pixel(&pixel, sprite->id, sprite_percent_x, sprite_percent_y, transform_y);
+					renderer->sprite_pixel(&pixel, object->id, sprite_percent_x, sprite_percent_y, transform_y);
 
 					renderer->pixel_data[index] = raycast_color_to_uint32(&(pixel.color));
 					// only account for the sprites depth if the pixel being drawn is fully opaque
