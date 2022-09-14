@@ -98,11 +98,6 @@ typedef struct {
 /*
 the camera is responsible for storing information about where
 the world will be rendered, and what fov it will be rendered at
-
-NOTE: we might need another attribute specifying what percentage the ray 
-is through the camera plane (from -1 to 1), essentially cameraX
-alternatively, since the only place that attribute will be useful is inside the render loop,
-maybe make it an extra parameter in the cast ray function
 */
 typedef struct {
 	raycast_point_t position;
