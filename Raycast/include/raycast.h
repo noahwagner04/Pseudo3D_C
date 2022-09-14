@@ -79,7 +79,7 @@ typedef struct {
 	double *depth_buffer;
 	uint32_t screen_width, screen_height;
 	double aspect_ratio;
-	char fast_top_bottom, render_top_bottom, render_walls, render_sprites;
+	char render_top_bottom, render_walls, render_sprites;
 	surface_pixel_t surface_pixel;
 	sprite_pixel_t sprite_pixel;
 } raycast_renderer_t;
@@ -103,7 +103,8 @@ typedef struct {
 	raycast_point_t position;
 	raycast_vector_t direction;
 	raycast_vector_t plane;
-	double pitch, height, focal_length, plane_length;
+	double height, focal_length, plane_length;
+	int pitch;
 } raycast_camera_t;
 
 // utility functions

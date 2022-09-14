@@ -52,7 +52,7 @@ void raycast_camera_init(raycast_camera_t* camera, raycast_renderer_t *renderer,
 	camera->plane_length = renderer->aspect_ratio;
 
 	camera->pitch = 0;
-	camera->height = 0.5;
+	camera->height = 0;
 	camera->focal_length = 1;
 }
 
@@ -68,7 +68,6 @@ int raycast_renderer_init(raycast_renderer_t* renderer, uint32_t *pixel_data, ui
 		return -1;
 	}
 
-	renderer->fast_top_bottom = 0;
 	renderer->render_top_bottom = 1;
 	renderer->render_walls = 1;
 	renderer->render_sprites = 1;
@@ -132,8 +131,8 @@ void raycast_DDA(raycast_hit_info_t* hit_info, raycast_scene_t* scene, double po
 	int step_x;
 	int step_y;
 
-	double delta_dist_x = dir_x == 0 ? INFINITY : fabs(initial_ray_length / dir_x);
-	double delta_dist_y = dir_y == 0 ? INFINITY : fabs(initial_ray_length / dir_y);
+	double delta_dist_x = dir_x == 0 ? 1e30 : fabs(initial_ray_length / dir_x);
+	double delta_dist_y = dir_y == 0 ? 1e30 : fabs(initial_ray_length / dir_y);
 
 	uint8_t hit = 0;
 	uint8_t side = 0;
@@ -236,7 +235,6 @@ int raycast_check_obstruction(raycast_scene_t* scene, double start_x, double sta
 
 // render functions
 
-// LATER: add camera height and pitch functionality and different wall heights
 void raycast_render_walls(raycast_renderer_t* renderer, raycast_scene_t* scene, raycast_camera_t* camera) {
 	int w = renderer->screen_width;
 	int h = renderer->screen_height;
@@ -262,8 +260,9 @@ void raycast_render_walls(raycast_renderer_t* renderer, raycast_scene_t* scene, 
 		if (hit_info.wall_type == 0) continue;
 
 		int line_height = (int)(h / hit_info.distance);
-		int draw_start = h / 2 - (int)(line_height * scene->wall_height - (double)line_height / 2);
-		int draw_end = h / 2 + line_height / 2;
+		int column_center = (int)(h * camera->height / hit_info.distance);
+		int draw_start = h / 2 - (int)(line_height * scene->wall_height - (double)line_height / 2) + camera->pitch + column_center;
+		int draw_end = h / 2 + line_height / 2 + camera->pitch + column_center;
 
 		//calculate value of wall_x
 		double wall_x; //where exactly the wall was hit
@@ -309,14 +308,16 @@ void raycast_render_walls(raycast_renderer_t* renderer, raycast_scene_t* scene, 
 }
 
 /*
-LATER: implement mode switch from regular to faster (but more limited) ceilings
-also add pitch and height calculations, add different height floor / ceiling functionality
+LATER: add different height floor / ceiling functionality
 */
 void raycast_render_top_bottom(raycast_renderer_t* renderer, raycast_scene_t* scene, raycast_camera_t* camera) {
 	int w = renderer->screen_width;
 	int h = renderer->screen_height;
+	int half_h = h / 2;
 
-	for (int y = 0; y < h / 2; y++) {
+	for (int y = 0; y < h; y++) {
+		int is_floor = y > half_h + camera->pitch;
+
 		// rayDir for leftmost ray (x = 0) and rightmost ray (x = w)
 		double ray_dir_x0 = camera->direction.x * camera->focal_length - camera->plane.x / 2;
 		double ray_dir_y0 = camera->direction.y * camera->focal_length - camera->plane.y / 2;
@@ -324,14 +325,14 @@ void raycast_render_top_bottom(raycast_renderer_t* renderer, raycast_scene_t* sc
 		double ray_dir_y1 = camera->direction.y * camera->focal_length + camera->plane.y / 2;
 
 		// Current y position compared to the center of the screen (the horizon)
-		int p = y - h / 2;
+		int p = y - (half_h + camera->pitch);
 
 		// Vertical position of the camera.
-		double pos_z = 0.5 * h;
+		double pos_z = is_floor ? (camera->height + 1.0 / 2) * h : (1 - (camera->height + 1.0 / 2)) * h;
 
 		// Horizontal distance from the camera to the floor for the current row.
 		// 0.5 is the z position exactly in the middle between floor and ceiling.
-		double row_distance = fabs(pos_z / p);
+		double row_distance = p == 0 ? 1e9 : fabs(pos_z / p);
 
 		// calculate the real world step vector we have to add for each x (parallel to camera plane)
 		// adding step by step avoids multiplications with a weight in the inner loop
@@ -351,36 +352,28 @@ void raycast_render_top_bottom(raycast_renderer_t* renderer, raycast_scene_t* sc
 			double unit_x = floor_x - cell_x;
 			double unit_y = floor_y - cell_y;
 
-			// index1 draws ceiling (top half of screen), index2 draws floor (bottom half of screen)
-			int index1 = y * w + x;
-			int index2 = ((h - 1) - y) * w + x;
-
 			raycast_screen_pixel_t pixel;
 
-			//draw ceiling
-			if (renderer->depth_buffer[index1] > row_distance) {
+			int index = y * w + x;
 
-				raycast_uint32_to_color(renderer->pixel_data[index1], &(pixel.color));
+			if (renderer->depth_buffer[index] > row_distance) {
+				raycast_face_t face;
 
-				pixel.location = index1;
+				raycast_uint32_to_color(renderer->pixel_data[index], &(pixel.color));
 
-				renderer->surface_pixel(&pixel, cell_x, cell_y, fabs(unit_x), fabs(unit_y), raycast_top, row_distance);
+				pixel.location = index;
 
-				renderer->pixel_data[index1] = raycast_color_to_uint32(&(pixel.color));
-				renderer->depth_buffer[index1] = row_distance;
-			}
+				// we are drawing the ceiling
+				if (is_floor) {
+					face = raycast_bottom;
+				} else {
+					// we are drawing the floor
+					face = raycast_top;
+				}
 
-			// draw floor
-			if (renderer->depth_buffer[index2] > row_distance) {
-
-				raycast_uint32_to_color(renderer->pixel_data[index2], &(pixel.color));
-
-				pixel.location = index2;
-
-				renderer->surface_pixel(&pixel, cell_x, cell_y, fabs(unit_x), fabs(unit_y), raycast_bottom, row_distance);
-
-				renderer->pixel_data[index2] = raycast_color_to_uint32(&(pixel.color));
-				renderer->depth_buffer[index2] = row_distance;
+				renderer->surface_pixel(&pixel, cell_x, cell_y, fabs(unit_x), fabs(unit_y), face, row_distance);
+				renderer->pixel_data[index] = raycast_color_to_uint32(&(pixel.color));
+				renderer->depth_buffer[index] = row_distance;
 			}
 
 			floor_x += floor_step_x;
@@ -389,10 +382,6 @@ void raycast_render_top_bottom(raycast_renderer_t* renderer, raycast_scene_t* sc
 	}
 }
 
-/*
-LATER: i need to implement sprites that correct for camera pitch, and sprites 
-at different heights, and sprites that respond to camera at different height
-*/
 void raycast_render_sprites(raycast_renderer_t* renderer, raycast_scene_t* scene, raycast_camera_t* camera) {
 	int w = renderer->screen_width;
 	int h = renderer->screen_height;
@@ -420,8 +409,9 @@ void raycast_render_sprites(raycast_renderer_t* renderer, raycast_scene_t* scene
 		// if the sprite is behind us, don't draw it
 		if (transform_y < 0) continue;
 
+		// screen coordinates of the sprite's center
 		int sprite_screen_x = (int)((1 + transform_x / transform_y) / 2 * w);
-		int sprite_screen_y = (int)((1 - object->height / transform_y) / 2 * h);
+		int sprite_screen_y = (int)((1 - object->height / transform_y) / 2 * h) + camera->pitch + (int)(h * camera->height / transform_y);
 
 		//calculate height of the sprite on screen
 		int sprite_height = abs((int)(h * (object->size / transform_y)));
@@ -492,9 +482,9 @@ void raycast_render(raycast_renderer_t* renderer, raycast_scene_t* scene, raycas
 	// render surfaces
 	if (renderer->surface_pixel != NULL) {
 
-		if(scene->world_map != NULL && renderer->render_walls) raycast_render_walls(renderer, scene, camera);
+		if (scene->world_map != NULL && renderer->render_walls) raycast_render_walls(renderer, scene, camera);
 
-		if(renderer->render_top_bottom) raycast_render_top_bottom(renderer, scene, camera);
+		if (renderer->render_top_bottom) raycast_render_top_bottom(renderer, scene, camera);
 	}
 
 	// render objects
