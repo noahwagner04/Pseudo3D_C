@@ -262,8 +262,8 @@ void raycast_render_walls(raycast_renderer_t* renderer, raycast_scene_t* scene, 
 		if (hit_info.wall_type == 0) continue;
 
 		int line_height = (int)(h / hit_info.distance);
-		int draw_start = -line_height / 2 + h / 2;
-		int draw_end = line_height / 2 + h / 2;
+		int draw_start = h / 2 -line_height / 2;
+		int draw_end = h / 2 + line_height / 2;
 
 		//calculate value of wall_x
 		double wall_x; //where exactly the wall was hit
@@ -282,7 +282,7 @@ void raycast_render_walls(raycast_renderer_t* renderer, raycast_scene_t* scene, 
 		double step = 1.0 / (line_height & 0xFFFFFFFE);
 
 		//Starting texture coordinate
-		double wall_y = line_height > h ? abs(draw_start) * step : 0;
+		double wall_y = draw_start < 0 ? abs(draw_start) * step : 0;
 
 		// constrain draw_start and draw_end to be within the range 0 - screen_height
 		if (draw_start < 0) draw_start = 0;
