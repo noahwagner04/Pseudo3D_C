@@ -79,7 +79,7 @@ typedef struct {
 	double *depth_buffer;
 	uint32_t screen_width, screen_height;
 	double aspect_ratio;
-	char render_top_bottom, render_walls, render_sprites;
+	char render_top_bottom, render_top, render_bottom, render_walls, render_sprites;
 	surface_pixel_t surface_pixel;
 	sprite_pixel_t sprite_pixel;
 } raycast_renderer_t;
