@@ -259,11 +259,6 @@ void raycast_render_walls(raycast_renderer_t* renderer, raycast_scene_t* scene, 
 		// if we hit out of the map, don't do anything
 		if (hit_info.wall_type == 0) continue;
 
-		int line_height = (int)(h / hit_info.distance);
-		int column_center = h / 2 + camera->pitch + (int)(h * camera->height / hit_info.distance);
-		int draw_start = column_center - (int)(line_height * scene->wall_height - (double)line_height / 2);
-		int draw_end = column_center + line_height / 2;
-
 		//calculate value of wall_x
 		double wall_x; //where exactly the wall was hit
 		if (hit_info.face == raycast_east || hit_info.face == raycast_west) {
@@ -272,6 +267,16 @@ void raycast_render_walls(raycast_renderer_t* renderer, raycast_scene_t* scene, 
 			wall_x = camera->position.x + hit_info.distance * ray_dir_x;
 		}
 		wall_x -= floor(wall_x);
+
+		// the height of the vertical column
+		int line_height = (int)(h / hit_info.distance);
+
+		// where to offset endpoints from
+		int column_center = h / 2 + camera->pitch + (int)(h * camera->height / hit_info.distance);
+
+		// calculate the starting and ending pixel coordinates of the column to draw
+		int draw_start = column_center - (int)(line_height * scene->wall_height - (double)line_height / 2);
+		int draw_end = column_center + line_height / 2;
 
 		// How much to increase the texture coordinate per screen pixel
 		double step = 1.0 / (draw_end - draw_start);
