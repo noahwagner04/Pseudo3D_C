@@ -69,6 +69,8 @@ int raycast_renderer_init(raycast_renderer_t* renderer, uint32_t *pixel_data, ui
 	}
 
 	renderer->render_top_bottom = 1;
+	renderer->render_top = 1;
+	renderer->render_bottom = 1;
 	renderer->render_walls = 1;
 	renderer->render_sprites = 1;
 
@@ -317,7 +319,10 @@ void raycast_render_top_bottom(raycast_renderer_t* renderer, raycast_scene_t* sc
 	int h = renderer->screen_height;
 	int half_h = h / 2;
 
-	for (int y = 0; y < h; y++) {
+	int y_start = renderer->render_top ? 0 : half_h;
+	int y_end = renderer->render_bottom ? h : half_h;
+
+	for (int y = y_start; y < y_end; y++) {
 		int is_floor = y > half_h + camera->pitch;
 
 		// rayDir for leftmost ray (x = 0) and rightmost ray (x = w)
@@ -330,7 +335,7 @@ void raycast_render_top_bottom(raycast_renderer_t* renderer, raycast_scene_t* sc
 		int p = y - (half_h + camera->pitch);
 
 		// Vertical position of the camera.
-		double pos_z = is_floor ? (camera->height + 1.0 / 2) * h : (1 - (camera->height + 1.0 / 2)) * h;
+		double pos_z = is_floor ? (camera->height + 1.0 / 2 - scene->bottom_height) * h : (scene->top_height - (camera->height + 1.0 / 2)) * h;
 
 		// Horizontal distance from the camera to the floor for the current row.
 		// 0.5 is the z position exactly in the middle between floor and ceiling.
